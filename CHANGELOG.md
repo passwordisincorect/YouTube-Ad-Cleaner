@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 - 2026-09-12
+
+- Thêm request sanitizer chạy trước khi Fetch/XHR gửi request player tới YouTube.
+- Hỗ trợ `/youtubei/v1/player`, `/youtubei/v1/get_watch` và `/youtubei/v1/playlist/watch`.
+- Thêm `isInlinePlaybackNoAd = true` vào `contentPlaybackContext` khi request có cấu trúc tương ứng.
+- Loại `adSignalsInfo` khỏi request player trong khi giữ nguyên client identity, video data, auth/attestation, captions và content-check fields.
+- Giữ response sanitizer hiện tại làm lớp dự phòng cho `ytInitialPlayerResponse`, Fetch và XHR.
+- Tiếp tục fail-open khi request/response không thể xử lý an toàn.
+- Không thêm Skip Ad, mute, seek, tăng `playbackRate`, client spoofing hoặc DNR chặn player endpoint.
+- Thêm regression test cho outbound Fetch/XHR request bodies.
+
 ## 1.2.1 - 2026-09-12
 
 - Sửa trường hợp quảng cáo video vẫn xuất hiện khi YouTube lấy player response qua `XMLHttpRequest` thay vì `fetch`.
