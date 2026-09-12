@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 function makeDocument({ selectors = {}, skipButtons = [], adShowing = false, video = null } = {}) {
   return {
@@ -13,42 +15,13 @@ function makeDocument({ selectors = {}, skipButtons = [], adShowing = false, vid
   };
 }
 
-test('disabled cleanup makes no changes', () => {
-  const cleaner = require('../content.js');
-  let hidden = false;
-  const node = { style: { set display(value) { hidden = value === 'none'; } } };
-  const doc = makeDocument({ selectors: { 'ytd-ad-slot-renderer': [node] } });
-  const result = cleaner.cleanPage(doc, false);
-  assert.equal(result.hiddenCount, 0);
-  assert.equal(result.skipped, false);
-  assert.equal(hidden, false);
-});
-
-test('enabled cleanup hides known ad containers', () => {
-  const cleaner = require('../content.js');
-  const node = { style: {} };
-  const doc = makeDocument({ selectors: { 'ytd-ad-slot-renderer': [node] } });
-  const result = cleaner.cleanPage(doc, true);
-  assert.equal(result.hiddenCount, 1);
-  assert.equal(node.style.display, 'none');
-});
-
-test('enabled cleanup clicks a detected skip button once', () => {
-  const cleaner = require('../content.js');
-  let clicks = 0;
-  const button = { disabled: false, click() { clicks += 1; } };
-  const doc = makeDocument({ skipButtons: [button] });
-  const result = cleaner.cleanPage(doc, true);
-  assert.equal(result.skipped, true);
-  assert.equal(clicks, 1);
-});
-
-test('disabling restores nodes previously hidden by the cleaner', () => {
+test('disabled cleanup makes no changes and restores hidden nodes', () => {
   const cleaner = require('../content.js');
   const node = { style: { display: 'block' } };
   const doc = makeDocument({ selectors: { 'ytd-ad-slot-renderer': [node] } });
   cleaner.cleanPage(doc, true);
-  cleaner.cleanPage(doc, false);
+  const result = cleaner.cleanPage(doc, false);
+  assert.equal(result.hiddenCount, 0);
   assert.equal(node.style.display, 'block');
 });
 
@@ -61,22 +34,40 @@ test('feed ads collapse the whole YouTube layout card so no blank gap remains', 
   assert.equal(card.style.display, 'none');
 });
 
-test('a non-skippable player ad is immediately advanced and muted', () => {
-  const cleaner = require('../content.js');
-  const video = { muted: false, playbackRate: 1, duration: 30, currentTime: 0 };
-  const doc = makeDocument({ adShowing: true, video });
-  const result = cleaner.cleanPage(doc, true);
-  assert.equal(result.bypassed, true);
-  assert.equal(video.muted, true);
-  assert.equal(video.playbackRate, 16);
-  assert.ok(video.currentTime >= 29.9);
+test('production runtime has no post-ad bypass behavior', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
+  assert.equal(source.includes('playbackRate = 16'), false);
+  assert.equal(source.includes('video.currentTime ='), false);
+  assert.equal(source.includes('video.muted = true'), false);
+  assert.equal(source.includes('ad-skip-button'), false);
 });
 
-test('player media state is restored after the ad ends', () => {
+test('companion and sidebar ad renderers are included in ad selectors', () => {
   const cleaner = require('../content.js');
-  const video = { muted: false, playbackRate: 1.25, duration: 15, currentTime: 0 };
-  cleaner.cleanPage(makeDocument({ adShowing: true, video }), true);
-  cleaner.cleanPage(makeDocument({ adShowing: false, video }), true);
-  assert.equal(video.muted, false);
-  assert.equal(video.playbackRate, 1.25);
+  assert.ok(cleaner.AD_SELECTORS.includes('ytd-companion-slot-renderer'));
+  assert.ok(cleaner.AD_SELECTORS.includes('ytd-action-companion-ad-renderer'));
+  assert.ok(cleaner.AD_SELECTORS.includes('ytd-display-ad-renderer'));
+});
+
+test('Premium promo detector identifies Premium copy but not generic dialogs', () => {
+  const cleaner = require('../content.js');
+  assert.equal(cleaner.isPremiumPromoNode({ textContent: 'YouTube Premium 1 tháng miễn phí' }), true);
+  assert.equal(cleaner.isPremiumPromoNode({ textContent: 'Bạn có muốn lưu thay đổi?' }), false);
+});
+
+test('sponsored label detector catches Vietnamese/English ad cards', () => {
+  const cleaner = require('../content.js');
+  assert.equal(cleaner.isSponsoredCard({ textContent: 'Rồi Text to 3D AI · Được tài trợ · hyper3d.ai' }), true);
+  assert.equal(cleaner.isSponsoredCard({ textContent: 'Sponsored · example.com' }), true);
+  assert.equal(cleaner.isSponsoredCard({ textContent: 'Video hướng dẫn lập trình STM32' }), false);
+});
+
+test('Premium dialog is hidden while unrelated dialog remains visible', () => {
+  const cleaner = require('../content.js');
+  const premium = { style: { display: 'block' }, textContent: 'YouTube Premium Miễn phí 1 tháng', tagName: 'TP-YT-PAPER-DIALOG' };
+  const regular = { style: { display: 'block' }, textContent: 'Bạn có muốn lưu thay đổi?', tagName: 'TP-YT-PAPER-DIALOG' };
+  const doc = makeDocument({ selectors: { 'tp-yt-paper-dialog': [premium, regular] } });
+  cleaner.cleanPage(doc, true);
+  assert.equal(premium.style.display, 'none');
+  assert.equal(regular.style.display, 'block');
 });

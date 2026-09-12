@@ -7,6 +7,7 @@ on:
       - "manifest.json"
       - "rules.json"
       - "background.js"
+      - "page-hook.js"
       - "content.js"
       - "popup.html"
       - "popup.css"
@@ -27,9 +28,11 @@ jobs:
       - name: Run tests
         run: |
           node --test
+          node --check page-hook.js
           node --check content.js
           node --check background.js
           node --check popup.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json')); JSON.parse(require('fs').readFileSync('rules.json')); console.log('json ok')"
       - name: Read extension version
         id: version
         shell: bash
@@ -41,7 +44,7 @@ jobs:
         shell: bash
         run: |
           zip -j "YouTube-Ad-Cleaner-v${{ steps.version.outputs.version }}.zip" \
-            manifest.json rules.json background.js content.js \
+            manifest.json page-hook.js content.js background.js rules.json \
             popup.html popup.css popup.js LICENSE README.md CHANGELOG.md
       - name: Create GitHub Release
         env:

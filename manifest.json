@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Cleaner",
-  "version": "1.1.0",
-  "description": "Blocks common YouTube ad requests, removes promoted UI, and bypasses player ads that still get through.",
+  "version": "1.2.0",
+  "description": "Prevents common YouTube ad metadata from reaching the player, blocks external ad domains, and removes promoted UI.",
   "permissions": ["storage", "declarativeNetRequestWithHostAccess"],
   "host_permissions": [
     "https://youtube.com/*",
@@ -16,9 +16,18 @@
     "rule_resources": [{"id": "youtube_ads", "enabled": true, "path": "rules.json"}]
   },
   "action": {"default_title": "YouTube Ad Cleaner", "default_popup": "popup.html"},
-  "content_scripts": [{
-    "matches": ["https://www.youtube.com/*", "https://youtube.com/*"],
-    "js": ["content.js"],
-    "run_at": "document_start"
-  }]
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*", "https://youtube.com/*"],
+      "js": ["page-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.youtube.com/*", "https://youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ]
 }

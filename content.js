@@ -11,16 +11,20 @@
   const AD_SELECTORS = [
     'ytd-ad-slot-renderer',
     'ytd-display-ad-renderer',
+    'ytd-companion-slot-renderer',
+    'ytd-action-companion-ad-renderer',
+    'ytd-companion-display-ad-renderer',
     'ytd-promoted-sparkles-web-renderer',
+    'ytd-promoted-sparkles-text-search-renderer',
     'ytd-promoted-video-renderer',
     'ytd-in-feed-ad-layout-renderer',
+    'ytd-ad-inline-playback-renderer',
     'ytd-banner-promo-renderer',
     'ytd-video-masthead-ad-renderer',
     '#masthead-ad',
     '#player-ads',
     '.video-ads.ytp-ad-module',
-    '.ytp-ad-overlay-container',
-    'tp-yt-paper-dialog ytd-mealbar-promo-renderer'
+    '.ytp-ad-overlay-container'
   ];
 
   const FEED_CARD_SELECTOR = [
@@ -30,37 +34,48 @@
     'ytd-compact-video-renderer'
   ].join(', ');
 
-  const SKIP_SELECTORS = [
-    '.ytp-ad-skip-button-modern',
-    '.ytp-ad-skip-button',
-    '.ytp-skip-ad-button',
-    'button.ytp-ad-skip-button-modern',
-    'button[class*="skip"]'
-  ];
-
-  const PLAYER_AD_SELECTOR = [
-    '.html5-video-player.ad-showing',
-    '.html5-video-player.ad-interrupting'
+  const SPONSORED_CARD_SELECTOR = [
+    'ytd-rich-item-renderer',
+    'ytd-video-renderer',
+    'ytd-compact-video-renderer',
+    'ytd-ad-slot-renderer',
+    'ytd-companion-slot-renderer',
+    'ytd-action-companion-ad-renderer'
   ].join(', ');
+
+  const PREMIUM_PROMO_SELECTORS = [
+    'tp-yt-paper-dialog',
+    'ytd-mealbar-promo-renderer',
+    'ytd-banner-promo-renderer'
+  ];
 
   const originalDisplay = new WeakMap();
   const hiddenTargets = new Set();
-  const mediaState = new WeakMap();
 
   function queryAll(doc, selector) {
-    try {
-      return Array.from(doc.querySelectorAll(selector) || []);
-    } catch (_) {
-      return [];
-    }
+    try { return Array.from(doc.querySelectorAll(selector) || []); } catch (_) { return []; }
   }
 
-  function queryOne(doc, selector) {
-    try {
-      return doc.querySelector(selector);
-    } catch (_) {
-      return null;
-    }
+  function normalizedText(node) {
+    return String(node && node.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function isPremiumPromoNode(node) {
+    const text = normalizedText(node).toLowerCase();
+    if (!text) return false;
+    return text.includes('youtube premium') ||
+      (text.includes('premium') && (
+        text.includes('miễn phí 1 tháng') ||
+        text.includes('free for 1 month') ||
+        text.includes('1 month free') ||
+        text.includes('dùng thử miễn phí') ||
+        text.includes('free trial')
+      ));
+  }
+
+  function isSponsoredCard(node) {
+    const text = normalizedText(node).slice(0, 500);
+    return /(^|\s|·)(được tài trợ|sponsored)(\s|·|$)/i.test(text);
   }
 
   function getHideTarget(node) {
@@ -69,11 +84,18 @@
       try {
         const card = node.closest(FEED_CARD_SELECTOR);
         if (card) return card;
-      } catch (_) {
-        // Fall back to hiding the ad node itself.
-      }
+      } catch (_) {}
     }
     return node;
+  }
+
+  function hideTarget(target) {
+    if (!target || !target.style) return false;
+    if (!originalDisplay.has(target)) originalDisplay.set(target, target.style.display || '');
+    hiddenTargets.add(target);
+    if (target.style.display === 'none') return false;
+    target.style.display = 'none';
+    return true;
   }
 
   function hideKnownAds(doc) {
@@ -83,18 +105,36 @@
     for (const selector of AD_SELECTORS) {
       for (const node of queryAll(doc, selector)) {
         const target = getHideTarget(node);
-        if (!target || !target.style || handled.has(target)) continue;
+        if (!target || handled.has(target)) continue;
         handled.add(target);
+        if (hideTarget(target)) hiddenCount += 1;
+      }
+    }
 
-        if (!originalDisplay.has(target)) {
-          originalDisplay.set(target, target.style.display || '');
-        }
-        hiddenTargets.add(target);
+    for (const card of queryAll(doc, SPONSORED_CARD_SELECTOR)) {
+      if (!card || handled.has(card) || !isSponsoredCard(card)) continue;
+      handled.add(card);
+      if (hideTarget(card)) hiddenCount += 1;
+    }
 
-        if (target.style.display !== 'none') {
-          target.style.display = 'none';
-          hiddenCount += 1;
+    let premiumDialogHidden = false;
+    for (const selector of PREMIUM_PROMO_SELECTORS) {
+      for (const node of queryAll(doc, selector)) {
+        if (!node || handled.has(node) || !isPremiumPromoNode(node)) continue;
+        let target = node;
+        if (typeof node.closest === 'function') {
+          try { target = node.closest('tp-yt-paper-dialog') || node; } catch (_) {}
         }
+        if (handled.has(target)) continue;
+        handled.add(target);
+        if (hideTarget(target)) hiddenCount += 1;
+        premiumDialogHidden = premiumDialogHidden || String(target.tagName || '').toLowerCase() === 'tp-yt-paper-dialog' || selector === 'tp-yt-paper-dialog';
+      }
+    }
+
+    if (premiumDialogHidden) {
+      for (const backdrop of queryAll(doc, 'tp-yt-iron-overlay-backdrop.opened')) {
+        if (hideTarget(backdrop)) hiddenCount += 1;
       }
     }
 
@@ -115,86 +155,22 @@
     }
   }
 
-  function findSkipButton(doc) {
-    for (const selector of SKIP_SELECTORS) {
-      const button = queryOne(doc, selector);
-      if (button && !button.disabled) return button;
-    }
-    return null;
-  }
-
-  function restorePlayerState(video) {
-    if (!video || !mediaState.has(video)) return false;
-    const state = mediaState.get(video);
-    try { video.muted = state.muted; } catch (_) {}
-    try { video.playbackRate = state.playbackRate; } catch (_) {}
-    mediaState.delete(video);
-    return true;
-  }
-
-  function bypassPlayerAd(doc) {
-    const video = queryOne(doc, 'video.html5-main-video, video');
-    if (!video) return false;
-
-    const adShowing = !!queryOne(doc, PLAYER_AD_SELECTOR);
-    if (!adShowing) {
-      restorePlayerState(video);
-      return false;
-    }
-
-    if (!mediaState.has(video)) {
-      mediaState.set(video, {
-        muted: !!video.muted,
-        playbackRate: Number(video.playbackRate) || 1
-      });
-    }
-
-    let handled = false;
-
-    try {
-      video.muted = true;
-      handled = true;
-    } catch (_) {}
-
-    try {
-      video.playbackRate = 16;
-      handled = true;
-    } catch (_) {}
-
-    const duration = Number(video.duration);
-    if (Number.isFinite(duration) && duration > 0) {
-      try {
-        video.currentTime = Math.max(0, duration - 0.05);
-        handled = true;
-      } catch (_) {
-        // Playback-rate acceleration remains as the fallback.
-      }
-    }
-
-    return handled;
-  }
-
   function cleanPage(doc, enabled) {
     if (!enabled) {
       restoreKnownAds();
-      const video = queryOne(doc, 'video.html5-main-video, video');
-      if (video) restorePlayerState(video);
-      return { hiddenCount: 0, skipped: false, bypassed: false };
+      return { hiddenCount: 0 };
     }
+    return { hiddenCount: hideKnownAds(doc) };
+  }
 
-    const hiddenCount = hideKnownAds(doc);
-    const skipButton = findSkipButton(doc);
-    let skipped = false;
-
-    if (skipButton && typeof skipButton.click === 'function') {
-      try {
-        skipButton.click();
-        skipped = true;
-      } catch (_) {}
+  function emitConfig(doc, enabled) {
+    if (!doc || typeof doc.dispatchEvent !== 'function' || typeof CustomEvent === 'undefined') return false;
+    try {
+      doc.dispatchEvent(new CustomEvent('YAC_CONFIG', { detail: { enabled: !!enabled } }));
+      return true;
+    } catch (_) {
+      return false;
     }
-
-    const bypassed = bypassPlayerAd(doc);
-    return { hiddenCount, skipped, bypassed };
   }
 
   function startBrowserRuntime() {
@@ -204,9 +180,7 @@
       typeof chrome === 'undefined' ||
       !chrome.storage ||
       !chrome.storage.sync
-    ) {
-      return;
-    }
+    ) return;
 
     let enabled = true;
     let scheduled = false;
@@ -219,28 +193,34 @@
     const schedule = () => {
       if (scheduled) return;
       scheduled = true;
-      if (typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(run);
-      } else {
-        window.setTimeout(run, 50);
-      }
+      if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(run);
+      else window.setTimeout(run, 50);
     };
 
-    chrome.storage.sync.get({ enabled: true }, (settings) => {
-      enabled = settings.enabled !== false;
+    const applyEnabled = (nextEnabled) => {
+      enabled = nextEnabled !== false;
+      emitConfig(document, enabled);
       schedule();
-    });
+    };
 
+    chrome.storage.sync.get({ enabled: true }, (settings) => applyEnabled(settings.enabled));
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'sync' || !changes.enabled) return;
-      enabled = changes.enabled.newValue !== false;
-      schedule();
+      applyEnabled(changes.enabled.newValue);
     });
 
     const observer = new MutationObserver(schedule);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    const observe = () => {
+      if (document.documentElement) {
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+        schedule();
+      }
+    };
+    if (document.documentElement) observe();
+    else document.addEventListener('readystatechange', observe, { once: true });
+
     document.addEventListener('yt-navigate-finish', schedule, true);
-    window.setInterval(schedule, 500);
+    window.setInterval(schedule, 2000);
   }
 
   startBrowserRuntime();
@@ -248,11 +228,12 @@
   return {
     AD_SELECTORS,
     FEED_CARD_SELECTOR,
-    SKIP_SELECTORS,
-    PLAYER_AD_SELECTOR,
-    findSkipButton,
+    SPONSORED_CARD_SELECTOR,
+    PREMIUM_PROMO_SELECTORS,
+    isPremiumPromoNode,
+    isSponsoredCard,
     getHideTarget,
-    bypassPlayerAd,
-    cleanPage
+    cleanPage,
+    emitConfig
   };
 });

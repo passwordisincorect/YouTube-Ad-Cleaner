@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 - 2026-09-12
+
+- Thêm MAIN-world `page-hook.js` chạy từ `document_start` để sanitize player response trước khi YouTube Player sử dụng.
+- Làm sạch `ytInitialPlayerResponse` và JSON từ `/youtubei/v1/player` / `/youtubei/v1/next` theo chính sách fail-open.
+- Xóa các DNR rule chặn endpoint player nội bộ YouTube từng có thể gây màn hình đen/chờ slot quảng cáo.
+- DNR v1.2.0 chỉ giữ blocklist cho DoubleClick, Google Syndication và Google Ad Services; tiếp tục không chặn `googlevideo.com`.
+- Bổ sung dọn companion/sidebar ads, sponsored cards và popup YouTube Premium.
+- Giữ cơ chế thu gọn card quảng cáo để không để lại vùng trống trong feed.
+- Loại bỏ hoàn toàn cơ chế click Skip Ad, mute, seek `currentTime` và tăng `playbackRate`.
+- Cập nhật popup, tài liệu, test và release packaging cho kiến trúc v1.2.0.
+
 ## 1.1.0 - 2026-09-12
 
 - Thêm `declarativeNetRequest` ruleset để chặn các request quảng cáo phổ biến trên YouTube.
