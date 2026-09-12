@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "manifest.json"
+      - "rules.json"
+      - "background.js"
       - "content.js"
       - "popup.html"
       - "popup.css"
@@ -22,13 +24,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Run tests
         run: |
           node --test
           node --check content.js
+          node --check background.js
           node --check popup.js
-
       - name: Read extension version
         id: version
         shell: bash
@@ -36,14 +37,12 @@ jobs:
           VERSION=$(node -p "require('./manifest.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Build release ZIP
         shell: bash
         run: |
           zip -j "YouTube-Ad-Cleaner-v${{ steps.version.outputs.version }}.zip" \
-            manifest.json content.js popup.html popup.css popup.js \
-            LICENSE README.md CHANGELOG.md
-
+            manifest.json rules.json background.js content.js \
+            popup.html popup.css popup.js LICENSE README.md CHANGELOG.md
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

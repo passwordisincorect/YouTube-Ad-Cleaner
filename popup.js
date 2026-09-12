@@ -5,7 +5,7 @@ const status = document.getElementById('status');
 
 function render(enabled) {
   toggle.checked = enabled;
-  status.textContent = enabled ? 'Đang bật' : 'Đang tắt';
+  status.textContent = enabled ? 'Đang chặn quảng cáo' : 'Đang tắt';
 }
 
 chrome.storage.sync.get({ enabled: true }, (settings) => {

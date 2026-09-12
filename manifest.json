@@ -1,21 +1,24 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Cleaner",
-  "version": "1.0.0",
-  "description": "Hides common YouTube ad/promoted UI and automatically clicks visible Skip Ad buttons when available.",
-  "permissions": ["storage"],
-  "action": {
-    "default_title": "YouTube Ad Cleaner",
-    "default_popup": "popup.html"
+  "version": "1.1.0",
+  "description": "Blocks common YouTube ad requests, removes promoted UI, and bypasses player ads that still get through.",
+  "permissions": ["storage", "declarativeNetRequestWithHostAccess"],
+  "host_permissions": [
+    "https://youtube.com/*",
+    "https://*.youtube.com/*",
+    "https://*.doubleclick.net/*",
+    "https://*.googlesyndication.com/*",
+    "https://*.googleadservices.com/*"
+  ],
+  "background": {"service_worker": "background.js"},
+  "declarative_net_request": {
+    "rule_resources": [{"id": "youtube_ads", "enabled": true, "path": "rules.json"}]
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://www.youtube.com/*",
-        "https://youtube.com/*"
-      ],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ]
+  "action": {"default_title": "YouTube Ad Cleaner", "default_popup": "popup.html"},
+  "content_scripts": [{
+    "matches": ["https://www.youtube.com/*", "https://youtube.com/*"],
+    "js": ["content.js"],
+    "run_at": "document_start"
+  }]
 }
