@@ -1,0 +1,61 @@
+name: Test and Release Extension
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "manifest.json"
+      - "content.js"
+      - "popup.html"
+      - "popup.css"
+      - "popup.js"
+      - "test/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: |
+          node --test
+          node --check content.js
+          node --check popup.js
+
+      - name: Read extension version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build release ZIP
+        shell: bash
+        run: |
+          zip -j "YouTube-Ad-Cleaner-v${{ steps.version.outputs.version }}.zip" \
+            manifest.json content.js popup.html popup.css popup.js \
+            LICENSE README.md CHANGELOG.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          ASSET="YouTube-Ad-Cleaner-v${{ steps.version.outputs.version }}.zip"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; skipping."
+            exit 0
+          fi
+          gh release create "$TAG" "$ASSET" \
+            --target "$GITHUB_SHA" \
+            --title "YouTube Ad Cleaner $TAG" \
+            --notes-file CHANGELOG.md

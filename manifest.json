@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Ad Cleaner",
+  "version": "1.0.0",
+  "description": "Hides common YouTube ad/promoted UI and automatically clicks visible Skip Ad buttons when available.",
+  "permissions": ["storage"],
+  "action": {
+    "default_title": "YouTube Ad Cleaner",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
