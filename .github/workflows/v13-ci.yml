@@ -1,0 +1,24 @@
+name: v1.3 Request Sanitizer CI
+
+on:
+  push:
+    branches: [v1.3-request-sanitizer]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: |
+          node --test
+          node --check page-hook.js
+          node --check content.js
+          node --check background.js
+          node --check popup.js
+          node --check scripts/extract-release-notes.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json')); JSON.parse(require('fs').readFileSync('rules.json')); console.log('json ok')"
