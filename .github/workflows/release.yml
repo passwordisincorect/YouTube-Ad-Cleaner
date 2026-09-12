@@ -12,6 +12,8 @@ on:
       - "popup.html"
       - "popup.css"
       - "popup.js"
+      - "CHANGELOG.md"
+      - "scripts/**"
       - "test/**"
       - ".github/workflows/release.yml"
   workflow_dispatch:
@@ -25,6 +27,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Run tests
         run: |
           node --test
@@ -32,7 +35,9 @@ jobs:
           node --check content.js
           node --check background.js
           node --check popup.js
+          node --check scripts/extract-release-notes.js
           node -e "JSON.parse(require('fs').readFileSync('manifest.json')); JSON.parse(require('fs').readFileSync('rules.json')); console.log('json ok')"
+
       - name: Read extension version
         id: version
         shell: bash
@@ -40,13 +45,20 @@ jobs:
           VERSION=$(node -p "require('./manifest.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Build release ZIP
         shell: bash
         run: |
           zip -j "YouTube-Ad-Cleaner-v${{ steps.version.outputs.version }}.zip" \
             manifest.json page-hook.js content.js background.js rules.json \
             popup.html popup.css popup.js LICENSE README.md CHANGELOG.md
-      - name: Create GitHub Release
+
+      - name: Extract current release notes
+        shell: bash
+        run: |
+          node scripts/extract-release-notes.js CHANGELOG.md "${{ steps.version.outputs.version }}" > release-notes.md
+
+      - name: Create or update current GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -54,10 +66,35 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           ASSET="YouTube-Ad-Cleaner-v${{ steps.version.outputs.version }}.zip"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; skipping."
-            exit 0
+            gh release edit "$TAG" \
+              --title "YouTube Ad Cleaner $TAG" \
+              --notes-file release-notes.md
+          else
+            gh release create "$TAG" "$ASSET" \
+              --target "$GITHUB_SHA" \
+              --title "YouTube Ad Cleaner $TAG" \
+              --notes-file release-notes.md
           fi
-          gh release create "$TAG" "$ASSET" \
-            --target "$GITHUB_SHA" \
-            --title "YouTube Ad Cleaner $TAG" \
-            --notes-file CHANGELOG.md
+
+      - name: Sync historical release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          node - <<'NODE' > versions.txt
+          const fs = require('node:fs');
+          const text = fs.readFileSync('CHANGELOG.md', 'utf8');
+          for (const match of text.matchAll(/^##\s+(\d+\.\d+\.\d+)\s+-/gm)) {
+            console.log(match[1]);
+          }
+          NODE
+
+          while IFS= read -r VERSION; do
+            TAG="v$VERSION"
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              node scripts/extract-release-notes.js CHANGELOG.md "$VERSION" > release-notes-historical.md
+              gh release edit "$TAG" \
+                --title "YouTube Ad Cleaner $TAG" \
+                --notes-file release-notes-historical.md
+            fi
+          done < versions.txt
