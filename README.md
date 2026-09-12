@@ -1,19 +1,18 @@
 # YouTube Ad Cleaner
 
-Extension Chrome/Edge Manifest V3 dành riêng cho YouTube. Bản v1.2.0 chuyển từ xử lý quảng cáo sau khi player đã vào trạng thái quảng cáo sang **làm sạch metadata quảng cáo trước khi player sử dụng response**.
+Extension Chrome/Edge Manifest V3 dành riêng cho YouTube. Bản v1.2.1 mở rộng cơ chế phòng quảng cáo trước player bằng cách xử lý cả **Fetch và XMLHttpRequest (XHR)**.
 
-## Tính năng v1.2.0
+## Tính năng v1.2.1
 
 - `page-hook.js` chạy trong **MAIN world** từ `document_start`.
-- Làm sạch các trường quảng cáo như `adPlacements`, `playerAds`, `adSlots` và các renderer quảng cáo lồng nhau trong `ytInitialPlayerResponse` và response `/youtubei/v1/player` / `/youtubei/v1/next`.
-- Nếu response không parse được hoặc gặp tình huống không an toàn, extension **fail-open** và trả response gốc để ưu tiên video phát bình thường.
+- Làm sạch metadata quảng cáo trong `ytInitialPlayerResponse`, response Fetch và response XHR của `/youtubei/v1/player` / `/youtubei/v1/next`.
+- Hỗ trợ XHR text/default và `responseType = "json"`.
+- Nếu response không parse hoặc browser không cho override an toàn, extension **fail-open** để ưu tiên playback.
 - DNR chỉ chặn domain quảng cáo ngoài có độ tin cậy cao: DoubleClick, Google Syndication và Google Ad Services.
-- Không chặn endpoint player nội bộ YouTube và không chặn `googlevideo.com`, tránh lỗi chờ màn hình đen do slot quảng cáo bị giữ lại.
-- Dọn companion/sidebar ads, promoted feed cards và popup YouTube Premium.
-- Thu gọn cả card quảng cáo trong feed để không để lại vùng trống.
-- Không còn cơ chế Skip Ad, mute, seek hoặc tăng tốc quảng cáo.
-- Popup bật/tắt đồng bộ MAIN-world sanitizer, DOM cleanup và ruleset DNR.
-- Không analytics, telemetry hoặc gửi dữ liệu người dùng ra ngoài.
+- Không chặn endpoint player nội bộ YouTube và không chặn `googlevideo.com`.
+- Dọn companion/sidebar ads, promoted feed cards, sponsored cards và popup YouTube Premium.
+- Không dùng Skip Ad, mute, seek hoặc tăng tốc quảng cáo.
+- Popup bật/tắt đồng bộ sanitizer, DOM cleanup và DNR.
 
 ## Cài trên Chrome / Edge
 
@@ -22,14 +21,16 @@ Extension Chrome/Edge Manifest V3 dành riêng cho YouTube. Bản v1.2.0 chuyể
 3. Bật **Developer mode**.
 4. Chọn **Load unpacked**.
 5. Chọn thư mục chứa `manifest.json`.
-6. Nếu nâng cấp từ bản cũ, bấm **Reload** extension và tải lại tab YouTube.
+6. Khi nâng cấp, bấm **Reload**, đóng toàn bộ tab YouTube rồi mở lại để MAIN-world hook chạy từ đầu trang.
 
 ## Cách hoạt động
 
 ```text
 YouTube page
    ├─ ytInitialPlayerResponse
-   └─ /youtubei/v1/player, /youtubei/v1/next
+   ├─ Fetch /youtubei/v1/player
+   ├─ XHR   /youtubei/v1/player
+   └─ /youtubei/v1/next
               │
               ▼
 page-hook.js (MAIN world, document_start)
@@ -39,17 +40,11 @@ page-hook.js (MAIN world, document_start)
               │
               ▼
         YouTube Player
-
-content.js (ISOLATED world)
-   └─ dọn companion/sidebar/feed/Premium UI
-
-rules.json
-   └─ chỉ chặn domain quảng cáo ngoài
 ```
 
 ## Giới hạn
 
-YouTube có thể thay đổi schema player hoặc cơ chế phân phối quảng cáo. Extension không đảm bảo chặn 100% mọi dạng quảng cáo vĩnh viễn. Chính sách v1.2.0 là **ưu tiên không làm hỏng playback**: nếu không chắc chắn, dữ liệu gốc được giữ lại.
+YouTube có thể thay đổi schema hoặc cơ chế phân phối quảng cáo. Extension không đảm bảo chặn 100% mọi dạng quảng cáo vĩnh viễn. Chính sách là ưu tiên không phá playback khi gặp cơ chế chưa nhận diện.
 
 ## Kiểm thử
 

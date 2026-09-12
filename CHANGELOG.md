@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1 - 2026-09-12
+
+- Sửa trường hợp quảng cáo video vẫn xuất hiện khi YouTube lấy player response qua `XMLHttpRequest` thay vì `fetch`.
+- Thêm MAIN-world XHR interception cho `/youtubei/v1/player` và `/youtubei/v1/next`.
+- Hỗ trợ cả XHR text/default response và `responseType = "json"`.
+- Giữ chính sách fail-open: nếu response không thể sanitize an toàn, trả dữ liệu gốc.
+- Không thêm lại Skip Ad, mute, seek hoặc tăng tốc quảng cáo.
+
 ## 1.2.0 - 2026-09-12
 
 - Thêm MAIN-world `page-hook.js` chạy từ `document_start` để sanitize player response trước khi YouTube Player sử dụng.

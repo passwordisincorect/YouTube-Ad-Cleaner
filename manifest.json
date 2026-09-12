@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Cleaner",
-  "version": "1.2.0",
-  "description": "Prevents common YouTube ad metadata from reaching the player, blocks external ad domains, and removes promoted UI.",
+  "version": "1.2.1",
+  "description": "Prevents common YouTube ad metadata from reaching the player through initial data, Fetch and XHR, blocks external ad domains, and removes promoted UI.",
   "permissions": ["storage", "declarativeNetRequestWithHostAccess"],
   "host_permissions": [
     "https://youtube.com/*",
