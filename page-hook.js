@@ -49,7 +49,55 @@
 
   function isPlayerApiUrl(url) {
     const text = String(url || '');
-    return text.includes('/youtubei/v1/player') || text.includes('/youtubei/v1/next');
+    return text.includes('/youtubei/v1/player') ||
+      text.includes('/youtubei/v1/next') ||
+      text.includes('/youtubei/v1/get_watch') ||
+      text.includes('/youtubei/v1/playlist/watch');
+  }
+
+  function isPlayerRequestUrl(url) {
+    const text = String(url || '');
+    return text.includes('/youtubei/v1/player') ||
+      text.includes('/youtubei/v1/get_watch') ||
+      text.includes('/youtubei/v1/playlist/watch');
+  }
+
+  function sanitizePlayerRequest(value) {
+    if (!value || typeof value !== 'object') return value;
+
+    try {
+      if (Object.prototype.hasOwnProperty.call(value, 'adSignalsInfo')) {
+        delete value.adSignalsInfo;
+      }
+    } catch (_) {}
+
+    try {
+      if (value.context && typeof value.context === 'object' &&
+          Object.prototype.hasOwnProperty.call(value.context, 'adSignalsInfo')) {
+        delete value.context.adSignalsInfo;
+      }
+    } catch (_) {}
+
+    try {
+      const contentPlaybackContext = value.playbackContext && value.playbackContext.contentPlaybackContext;
+      if (contentPlaybackContext && typeof contentPlaybackContext === 'object') {
+        contentPlaybackContext.isInlinePlaybackNoAd = true;
+      }
+    } catch (_) {}
+
+    return value;
+  }
+
+  function sanitizeRequestBody(body) {
+    if (typeof body !== 'string') return null;
+    try {
+      const value = JSON.parse(body);
+      if (!value || typeof value !== 'object') return null;
+      sanitizePlayerRequest(value);
+      return JSON.stringify(value);
+    } catch (_) {
+      return null;
+    }
   }
 
   function sanitizeJsonText(text) {
@@ -85,8 +133,17 @@
     const ResponseCtor = targetWindow.Response || (typeof Response !== 'undefined' ? Response : null);
 
     targetWindow.fetch = async function yacFetch(input, init) {
-      const response = await originalFetch(input, init);
       const url = typeof input === 'string' ? input : input && input.url;
+      let nextInit = init;
+
+      if (state.enabled && isPlayerRequestUrl(url) && init && typeof init.body === 'string') {
+        const sanitizedBody = sanitizeRequestBody(init.body);
+        if (sanitizedBody !== null) {
+          nextInit = Object.assign({}, init, { body: sanitizedBody });
+        }
+      }
+
+      const response = await originalFetch(input, nextInit);
       if (!state.enabled || !isPlayerApiUrl(url) || !response || typeof response.clone !== 'function') return response;
       try {
         const clone = response.clone();
@@ -121,6 +178,7 @@
     if (typeof proto.open !== 'function') return false;
 
     const originalOpen = proto.open;
+    const originalSend = typeof proto.send === 'function' ? proto.send : null;
     const responseTextDescriptor = Object.getOwnPropertyDescriptor(proto, 'responseText');
     const responseDescriptor = Object.getOwnPropertyDescriptor(proto, 'response');
     const nativeResponseTextGet = responseTextDescriptor && responseTextDescriptor.get;
@@ -180,6 +238,17 @@
       }
       return result;
     };
+
+    if (originalSend) {
+      proto.send = function yacXhrSend(body) {
+        let nextBody = body;
+        if (state.enabled && isPlayerRequestUrl(requestUrls.get(this)) && typeof body === 'string') {
+          const sanitizedBody = sanitizeRequestBody(body);
+          if (sanitizedBody !== null) nextBody = sanitizedBody;
+        }
+        return originalSend.call(this, nextBody);
+      };
+    }
 
     state.xhrInstalled = true;
     return true;
@@ -246,7 +315,10 @@
   return {
     AD_KEYS,
     sanitizePlayerResponse,
+    sanitizePlayerRequest,
+    sanitizeRequestBody,
     isPlayerApiUrl,
+    isPlayerRequestUrl,
     sanitizeJsonText,
     installConfigListener,
     installFetchHook,
