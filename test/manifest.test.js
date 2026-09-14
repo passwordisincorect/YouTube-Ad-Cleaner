@@ -6,10 +6,10 @@ const path = require('node:path');
 const manifestPath = path.join(__dirname, '..', 'manifest.json');
 function readManifest() { return JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
 
-test('manifest is MV3 version 1.3.0 with required permissions', () => {
+test('manifest is MV3 version 1.3.1 with required permissions', () => {
   const manifest = readManifest();
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, '1.3.0');
+  assert.equal(manifest.version, '1.3.1');
   assert.ok(manifest.permissions.includes('storage'));
   assert.ok(manifest.permissions.includes('declarativeNetRequestWithHostAccess'));
 });
