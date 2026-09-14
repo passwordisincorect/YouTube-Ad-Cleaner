@@ -64,27 +64,16 @@
 
   function sanitizePlayerRequest(value) {
     if (!value || typeof value !== 'object') return value;
-
     try {
-      if (Object.prototype.hasOwnProperty.call(value, 'adSignalsInfo')) {
-        delete value.adSignalsInfo;
-      }
+      if (Object.prototype.hasOwnProperty.call(value, 'adSignalsInfo')) delete value.adSignalsInfo;
     } catch (_) {}
-
     try {
-      if (value.context && typeof value.context === 'object' &&
-          Object.prototype.hasOwnProperty.call(value.context, 'adSignalsInfo')) {
-        delete value.context.adSignalsInfo;
-      }
+      if (value.context && typeof value.context === 'object' && Object.prototype.hasOwnProperty.call(value.context, 'adSignalsInfo')) delete value.context.adSignalsInfo;
     } catch (_) {}
-
     try {
       const contentPlaybackContext = value.playbackContext && value.playbackContext.contentPlaybackContext;
-      if (contentPlaybackContext && typeof contentPlaybackContext === 'object') {
-        contentPlaybackContext.isInlinePlaybackNoAd = true;
-      }
+      if (contentPlaybackContext && typeof contentPlaybackContext === 'object') contentPlaybackContext.isInlinePlaybackNoAd = true;
     } catch (_) {}
-
     return value;
   }
 
@@ -95,9 +84,7 @@
       if (!value || typeof value !== 'object') return null;
       sanitizePlayerRequest(value);
       return JSON.stringify(value);
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
   function sanitizeJsonText(text) {
@@ -105,9 +92,7 @@
       const value = JSON.parse(text);
       sanitizePlayerResponse(value);
       return JSON.stringify(value);
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 
   function installConfigListener(targetWindow) {
@@ -117,9 +102,7 @@
     const doc = targetWindow.document;
     if (!doc || typeof doc.addEventListener !== 'function') return false;
     doc.addEventListener('YAC_CONFIG', (event) => {
-      if (event && event.detail && typeof event.detail.enabled === 'boolean') {
-        state.enabled = event.detail.enabled;
-      }
+      if (event && event.detail && typeof event.detail.enabled === 'boolean') state.enabled = event.detail.enabled;
     }, true);
     state.configInstalled = true;
     return true;
@@ -131,32 +114,44 @@
     if (state.fetchInstalled) return true;
     const originalFetch = targetWindow.fetch.bind(targetWindow);
     const ResponseCtor = targetWindow.Response || (typeof Response !== 'undefined' ? Response : null);
+    const RequestCtor = targetWindow.Request || (typeof Request !== 'undefined' ? Request : null);
 
     targetWindow.fetch = async function yacFetch(input, init) {
       const url = typeof input === 'string' ? input : input && input.url;
       let nextInit = init;
 
-      if (state.enabled && isPlayerRequestUrl(url) && init && typeof init.body === 'string') {
-        const sanitizedBody = sanitizeRequestBody(init.body);
-        if (sanitizedBody !== null) {
-          nextInit = Object.assign({}, init, { body: sanitizedBody });
+      let nextInput = input;
+      if (state.enabled && isPlayerRequestUrl(url)) {
+        if (init && typeof init.body === 'string') {
+          const sanitizedBody = sanitizeRequestBody(init.body);
+          if (sanitizedBody !== null) nextInit = Object.assign({}, init, { body: sanitizedBody });
+        } else if (!init && RequestCtor && input instanceof RequestCtor && !input.bodyUsed) {
+          try {
+            const rawBody = await input.clone().text();
+            const sanitizedBody = sanitizeRequestBody(rawBody);
+            if (sanitizedBody !== null) nextInput = new RequestCtor(input, { body: sanitizedBody });
+          } catch (_) {
+            // Fail open when the Request body cannot be cloned/read safely.
+          }
         }
       }
 
-      const response = await originalFetch(input, nextInit);
-      if (!state.enabled || !isPlayerApiUrl(url) || !response || typeof response.clone !== 'function') return response;
+      const response = await originalFetch(nextInput, nextInit);
+      if (!state.enabled || !isPlayerApiUrl(url) || !response || typeof response.text !== 'function' || !ResponseCtor) {
+        return response;
+      }
+
       try {
-        const clone = response.clone();
-        const data = await clone.json();
-        if (!data || typeof data !== 'object') return response;
-        sanitizePlayerResponse(data);
-        if (!ResponseCtor) return response;
+        // Read the player body once. Unlike v1.3.0, do not clone/tee the stream.
+        const raw = await response.text();
+        const sanitized = sanitizeJsonText(raw);
+        const body = sanitized === null ? raw : sanitized;
         const headers = typeof Headers !== 'undefined' ? new Headers(response.headers) : response.headers;
         if (headers && typeof headers.delete === 'function') {
           headers.delete('content-length');
           headers.delete('content-encoding');
         }
-        return new ResponseCtor(JSON.stringify(data), {
+        return new ResponseCtor(body, {
           status: response.status,
           statusText: response.statusText,
           headers
@@ -176,7 +171,6 @@
     if (state.xhrInstalled) return true;
     const proto = targetWindow.XMLHttpRequest.prototype;
     if (typeof proto.open !== 'function') return false;
-
     const originalOpen = proto.open;
     const originalSend = typeof proto.send === 'function' ? proto.send : null;
     const responseTextDescriptor = Object.getOwnPropertyDescriptor(proto, 'responseText');
@@ -190,9 +184,7 @@
       try {
         const base = targetWindow.location && targetWindow.location.href || 'https://www.youtube.com/';
         return new URL(String(url || ''), base).href;
-      } catch (_) {
-        return String(url || '');
-      }
+      } catch (_) { return String(url || ''); }
     }
 
     function sanitizeCompletedRequest(xhr) {
@@ -203,26 +195,18 @@
           const raw = nativeResponseTextGet ? nativeResponseTextGet.call(xhr) : xhr.responseText;
           const sanitized = sanitizeJsonText(raw);
           if (sanitized === null) return;
-          try {
-            Object.defineProperty(xhr, 'responseText', { configurable: true, get() { return sanitized; } });
-          } catch (_) {}
-          try {
-            Object.defineProperty(xhr, 'response', { configurable: true, get() { return sanitized; } });
-          } catch (_) {}
+          try { Object.defineProperty(xhr, 'responseText', { configurable: true, get() { return sanitized; } }); } catch (_) {}
+          try { Object.defineProperty(xhr, 'response', { configurable: true, get() { return sanitized; } }); } catch (_) {}
           return;
         }
         if (responseType === 'json') {
           const value = nativeResponseGet ? nativeResponseGet.call(xhr) : xhr.response;
           if (value && typeof value === 'object') {
             sanitizePlayerResponse(value);
-            try {
-              Object.defineProperty(xhr, 'response', { configurable: true, get() { return value; } });
-            } catch (_) {}
+            try { Object.defineProperty(xhr, 'response', { configurable: true, get() { return value; } }); } catch (_) {}
           }
         }
-      } catch (_) {
-        // Fail open if browser XHR internals differ.
-      }
+      } catch (_) {}
     }
 
     proto.open = function yacXhrOpen(method, url) {
@@ -231,9 +215,7 @@
       try { delete this.response; } catch (_) {}
       const result = originalOpen.apply(this, arguments);
       if (!listenerAttached.has(this) && typeof this.addEventListener === 'function') {
-        this.addEventListener('readystatechange', function yacXhrReadyState() {
-          sanitizeCompletedRequest(this);
-        });
+        this.addEventListener('readystatechange', function yacXhrReadyState() { sanitizeCompletedRequest(this); });
         listenerAttached.add(this);
       }
       return result;
@@ -249,7 +231,6 @@
         return originalSend.call(this, nextBody);
       };
     }
-
     state.xhrInstalled = true;
     return true;
   }
@@ -262,10 +243,7 @@
       const key = 'ytInitialPlayerResponse';
       const descriptor = Object.getOwnPropertyDescriptor(targetWindow, key);
       if (descriptor && descriptor.configurable === false) {
-        try {
-          const existing = targetWindow[key];
-          if (state.enabled) sanitizePlayerResponse(existing);
-        } catch (_) {}
+        try { const existing = targetWindow[key]; if (state.enabled) sanitizePlayerResponse(existing); } catch (_) {}
         return false;
       }
       const enumerable = descriptor ? descriptor.enumerable : true;
@@ -273,34 +251,27 @@
       const originalSet = descriptor && descriptor.set;
       let current;
       if (descriptor && Object.prototype.hasOwnProperty.call(descriptor, 'value')) current = descriptor.value;
-      else if (originalGet) {
-        try { current = originalGet.call(targetWindow); } catch (_) { current = undefined; }
-      } else current = targetWindow[key];
+      else if (originalGet) { try { current = originalGet.call(targetWindow); } catch (_) { current = undefined; } }
+      else current = targetWindow[key];
       if (state.enabled) sanitizePlayerResponse(current);
       Object.defineProperty(targetWindow, key, {
         configurable: true,
         enumerable,
         get() {
           let value = current;
-          if (originalGet) {
-            try { value = originalGet.call(this); } catch (_) { value = current; }
-          }
+          if (originalGet) { try { value = originalGet.call(this); } catch (_) { value = current; } }
           if (state.enabled) sanitizePlayerResponse(value);
           return value;
         },
         set(value) {
           if (state.enabled) sanitizePlayerResponse(value);
-          if (originalSet) {
-            try { originalSet.call(this, value); return; } catch (_) {}
-          }
+          if (originalSet) { try { originalSet.call(this, value); return; } catch (_) {} }
           current = value;
         }
       });
       state.initialInstalled = true;
       return true;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) { return false; }
   }
 
   function startBrowserRuntime(targetWindow) {
