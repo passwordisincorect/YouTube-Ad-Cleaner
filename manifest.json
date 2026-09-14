@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "YouTube Ad Cleaner",
-  "version": "1.3.0",
-  "description": "Sanitizes supported YouTube player requests before dispatch, cleans player responses, blocks external ad domains, and removes promoted UI.",
-  "permissions": ["storage", "declarativeNetRequestWithHostAccess"],
+  "version": "1.3.1",
+  "description": "Sanitizes YouTube player requests and responses with no-clone player response processing.",
+  "permissions": [
+    "storage",
+    "declarativeNetRequestWithHostAccess"
+  ],
   "host_permissions": [
     "https://youtube.com/*",
     "https://*.youtube.com/*",
@@ -11,21 +14,42 @@
     "https://*.googlesyndication.com/*",
     "https://*.googleadservices.com/*"
   ],
-  "background": {"service_worker": "background.js"},
-  "declarative_net_request": {
-    "rule_resources": [{"id": "youtube_ads", "enabled": true, "path": "rules.json"}]
+  "background": {
+    "service_worker": "background.js"
   },
-  "action": {"default_title": "YouTube Ad Cleaner", "default_popup": "popup.html"},
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "youtube_ads",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "action": {
+    "default_title": "YouTube Ad Cleaner",
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*", "https://youtube.com/*"],
-      "js": ["page-hook.js"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": [
+        "page-hook.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://www.youtube.com/*", "https://youtube.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start",
       "world": "ISOLATED"
     }
