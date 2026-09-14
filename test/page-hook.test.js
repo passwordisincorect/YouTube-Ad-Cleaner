@@ -32,9 +32,11 @@ test('handles cyclic objects', () => {
   assert.equal('adSlots' in value, false);
 });
 
-test('matches only YouTube player/next API URLs', () => {
+test('matches supported YouTube player response API URLs', () => {
   assert.equal(hook.isPlayerApiUrl('https://www.youtube.com/youtubei/v1/player?prettyPrint=false'), true);
   assert.equal(hook.isPlayerApiUrl('https://www.youtube.com/youtubei/v1/next'), true);
+  assert.equal(hook.isPlayerApiUrl('https://www.youtube.com/youtubei/v1/get_watch'), true);
+  assert.equal(hook.isPlayerApiUrl('https://www.youtube.com/youtubei/v1/playlist/watch'), true);
   assert.equal(hook.isPlayerApiUrl('https://rr1---sn.googlevideo.com/videoplayback'), false);
 });
 
@@ -62,13 +64,13 @@ test('fetch hook leaves non-player responses untouched', async () => {
   assert.equal(result, response);
 });
 
-test('fetch hook fails open on malformed player JSON', async () => {
+test('fetch hook preserves malformed player body content', async () => {
   const response = new Response('not-json', { status: 200 });
   const target = { Response, fetch: async () => response };
   hook.installFetchHook(target);
   const result = await target.fetch('https://www.youtube.com/youtubei/v1/player');
-  assert.equal(result, response);
   assert.equal(await result.text(), 'not-json');
+  assert.equal(result.status, 200);
 });
 
 test('initial player response hook sanitizes existing and future assignments', () => {
