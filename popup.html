@@ -9,13 +9,13 @@
 <body>
   <main class="card">
     <div class="heading">
-      <div><h1>YouTube Ad Cleaner</h1><p>v1.3.0</p></div>
+      <div><h1>YouTube Ad Cleaner</h1><p>v1.3.1</p></div>
       <label class="switch" aria-label="Bật hoặc tắt extension">
         <input id="enabled" type="checkbox"><span class="slider"></span>
       </label>
     </div>
     <p id="status" class="status">Đang tải trạng thái…</p>
-    <p class="note">Làm sạch request player trước khi gửi, sau đó tiếp tục làm sạch response quảng cáo đã biết.</p>
+    <p class="note">Request player được sanitize trước khi gửi; response player được làm sạch mà không clone/tee stream.</p>
   </main>
   <script src="popup.js"></script>
 </body>
