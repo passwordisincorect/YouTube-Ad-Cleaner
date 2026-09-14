@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.1 - 2026-09-14
+
+- Chính thức hóa cơ chế từ `LOCAL TEST 3`.
+- Khôi phục response sanitizer cho `/youtubei/v1/player`, `/youtubei/v1/next`, `/youtubei/v1/get_watch` và `/youtubei/v1/playlist/watch`.
+- Với Fetch player response, đọc body một lần và tạo response đã sanitize mà không dùng `Response.clone()`/tee stream.
+- Bổ sung sanitize outbound body khi YouTube gọi `fetch()` bằng một `Request` object.
+- Giữ request sanitizer của v1.3.0: loại `adSignalsInfo` và thêm `isInlinePlaybackNoAd = true` khi cấu trúc request hỗ trợ.
+- Tiếp tục sanitize XHR và `ytInitialPlayerResponse` theo chính sách fail-open.
+- Không dùng Skip Ad, mute, seek hoặc tăng `playbackRate`.
+- Lưu ý: do Fetch player response vẫn phải được đọc và dựng lại trước khi trả cho YouTube, một số phiên có thể có độ trễ khởi động player cao hơn.
+
 ## 1.3.0 - 2026-09-12
 
 - Thêm request sanitizer chạy trước khi Fetch/XHR gửi request player tới YouTube.
